@@ -1,9 +1,9 @@
 -r base.txt
 
 # Databases
-MySQL-python>=1.2.3
+# MySQL-python>=1.2.3
 # Uncomment for PostgreSQL
-# psycopg2>=2.2
+psycopg2>=2.2
 
 # Libraries
 python-Levenshtein>=0.11.1

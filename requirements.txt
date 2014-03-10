@@ -7,6 +7,3 @@ lxml==3.2.5
 South==0.7.6
 translate-toolkit==1.11.0
 webassets==0.8
-
-#for postgres
-psycopg2
