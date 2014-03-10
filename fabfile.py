@@ -228,6 +228,16 @@ def _using_mysql():
     """check if using mysql"""
     return env.get('db_engine') == 'mysql'
 
+def _run_psql(host, port, database, user, password, command):
+    """execute a postgres command"""
+    psql_cmd = ("export PGPASSWORD=" + password + " ; " +
+        "psql --host=" + host + " --port=" + port + 
+        " --user=" + user +
+        " --dbname=" + database +
+        ' --command="' + command + '"')
+    run(psql_cmd)
+
+
 def create_db():
     """Creates a new DB"""
     require('environment', provided_by=[production, staging])
@@ -243,11 +253,6 @@ def create_db():
                         % env)
     else:
         # postgres
-        psql_cmd = ("export PGPASSWORD=%(db_password)s ; "  
-                    "psql --host=%(db_host)s --port=%(db_port)s --user=%(db_user)s " 
-                    " --dbname=postgres "
-                    % env)
-
         create_db_cmd = ("CREATE DATABASE %(db_name)s WITH OWNER %(db_user)s "
                          " ENCODING='utf-8';  "
                          % env)
@@ -267,8 +272,10 @@ def create_db():
                 create_db_cmd + grant_db_cmd + "';}")        
         else:
             #postgres
-            run(psql_cmd + ' --command="' + create_db_cmd + '"')
-            run(psql_cmd + ' --command="' + grant_db_cmd + '"')
+            _run_psql(env.db_host, env.db_port, "postgres", env.db_user, 
+                      env.db_password, create_db_cmd)
+            _run_psql(env.db_host, env.db_port, "postgres", env.db_user, 
+                      env.db_password, grant_db_cmd)
 
 
 def drop_db():
@@ -283,7 +290,8 @@ def drop_db():
             run("echo 'DROP DATABASE `%s`' | mysql -u %s %s" %
                 (env['db_name'], env['db_user'], env['db_password_opt']))
         else:
-            print('Skipping - not using mysql')
+            _run_psql(env.db_host, env.db_port, "postgres", env.db_user, 
+                      env.db_password, "DROP DATABASE %(db_name)s;" % env)
     else:
         abort('\nAborting.')
 
