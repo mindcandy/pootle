@@ -224,6 +224,10 @@ def unstage_feature():
     print('\n\nRemoved Pootle deployment for http://%(project_url)s' % env)
 
 
+def _using_mysql():
+    """check if using mysql"""
+    return env.get('db_type') == 'mysql'
+
 def create_db():
     """Creates a new DB"""
     require('environment', provided_by=[production, staging])
@@ -239,12 +243,15 @@ def create_db():
     print('\n\nCreating DB...')
 
     with settings(hide('stderr')):
-        run(("mysql -u %(db_user)s %(db_password_opt)s -e '" % env) +
-            create_db_cmd +
-            ("' || { test root = '%(db_user)s' && exit $?; " % env) +
-            "echo 'Trying again, with MySQL root DB user'; " +
-            ("mysql -u root %(db_root_password_opt)s -e '" % env) +
-            create_db_cmd + grant_db_cmd + "';}")
+        if _using_mysql():
+            run(("mysql -u %(db_user)s %(db_password_opt)s -e '" % env) +
+                create_db_cmd +
+                ("' || { test root = '%(db_user)s' && exit $?; " % env) +
+                "echo 'Trying again, with MySQL root DB user'; " +
+                ("mysql -u root %(db_root_password_opt)s -e '" % env) +
+                create_db_cmd + grant_db_cmd + "';}")
+        else:
+            print('Skipping - not using mysql')
 
 
 def drop_db():
@@ -255,8 +262,11 @@ def drop_db():
 
     if confirm('\nDropping the %s DB loses ALL its data! Are you sure?'
                % (env['db_name']), default=False):
-        run("echo 'DROP DATABASE `%s`' | mysql -u %s %s" %
-            (env['db_name'], env['db_user'], env['db_password_opt']))
+        if _using_mysql():
+            run("echo 'DROP DATABASE `%s`' | mysql -u %s %s" %
+                (env['db_name'], env['db_user'], env['db_password_opt']))
+        else:
+            print('Skipping - not using mysql')
     else:
         abort('\nAborting.')
 
@@ -290,25 +300,28 @@ def _copy_db():
 
     with settings(hide('stderr'),
                   temp_dump='%(project_path)s/temporary_DB_backup.sql' % env):
-        print('\nDumping DB data...')
+        if _using_mysql():        
+            print('\nDumping DB data...')
 
-        run("mysqldump -u %(db_user)s %(db_password_opt)s %(source_db)s > "
-            "%(temp_dump)s"
-            " || { test root = '%(db_user)s' && exit $?; "
-            "echo 'Trying again, with MySQL root DB user'; "
-            "mysqldump -u root %(db_root_password_opt)s %(source_db)s > "
-            "%(temp_dump)s;}" % env)
+            run("mysqldump -u %(db_user)s %(db_password_opt)s %(source_db)s > "
+                "%(temp_dump)s"
+                " || { test root = '%(db_user)s' && exit $?; "
+                "echo 'Trying again, with MySQL root DB user'; "
+                "mysqldump -u root %(db_root_password_opt)s %(source_db)s > "
+                "%(temp_dump)s;}" % env)
 
-        print('\nLoading data into the DB...')
+            print('\nLoading data into the DB...')
 
-        run("mysql -u %(db_user)s %(db_password_opt)s %(db_name)s < "
-            "%(temp_dump)s"
-            " || { test root = '%(db_user)s' && exit $?; "
-            "echo 'Trying again, with MySQL root DB user'; "
-            "mysql -u root %(db_root_password_opt)s %(db_name)s < "
-            "%(temp_dump)s;}" % env)
+            run("mysql -u %(db_user)s %(db_password_opt)s %(db_name)s < "
+                "%(temp_dump)s"
+                " || { test root = '%(db_user)s' && exit $?; "
+                "echo 'Trying again, with MySQL root DB user'; "
+                "mysql -u root %(db_root_password_opt)s %(db_name)s < "
+                "%(temp_dump)s;}" % env)
 
-        run('rm -f %(temp_dump)s' % env)
+            run('rm -f %(temp_dump)s' % env)
+        else:  
+            print('Skipping - not using mysql')
 
 
 def syncdb():
@@ -403,6 +416,10 @@ def load_db(dumpfile=None):
 
     print('\n\nLoading data into the DB...')
 
+    if not _using_mysql():
+        print('Skipping - not using mysql')
+        return
+
     if dumpfile is not None:
         if isfile(dumpfile):
             remote_filename = '%(project_path)s/DB_backup_to_load.sql' % env
@@ -430,6 +447,10 @@ def dump_db(dumpfile="pootle_DB_backup.sql"):
     require('environment', provided_by=[production, staging])
 
     print('\n\nDumping DB...')
+
+    if not _using_mysql():
+        print('Skipping - not using mysql')
+        return
 
     if isdir(dumpfile):
         abort("dumpfile '%s' is a directory! Aborting." % dumpfile)
