@@ -226,19 +226,34 @@ def unstage_feature():
 
 def _using_mysql():
     """check if using mysql"""
-    return env.get('db_type') == 'mysql'
+    return env.get('db_engine') == 'mysql'
 
 def create_db():
     """Creates a new DB"""
     require('environment', provided_by=[production, staging])
 
-    create_db_cmd = ("CREATE DATABASE `%(db_name)s` "
-                     "DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;"
-                     % env)
-    grant_db_cmd = ("GRANT ALL PRIVILEGES ON `%(db_name)s`.* TO `%(db_user)s`"
-                    "@localhost IDENTIFIED BY \"%(db_password)s\"; "
-                    "FLUSH PRIVILEGES;"
+    if _using_mysql():
+        # mysql
+        create_db_cmd = ("CREATE DATABASE `%(db_name)s` "
+                         "DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;"
+                         % env)
+        grant_db_cmd = ("GRANT ALL PRIVILEGES ON `%(db_name)s`.* TO `%(db_user)s`"
+                        "@localhost IDENTIFIED BY \"%(db_password)s\"; "
+                        "FLUSH PRIVILEGES;"
+                        % env)
+    else:
+        # postgres
+        psql_cmd = ("export PGPASSWORD=%(db_password)s ; "  
+                    "psql --host=%(db_host)s --port=%(db_port)s --user=%(db_user)s " 
+                    " --dbname=postgres "
                     % env)
+
+        create_db_cmd = ("CREATE DATABASE %(db_name)s WITH OWNER %(db_user)s "
+                         " ENCODING='utf-8';  "
+                         % env)
+        grant_db_cmd = ("GRANT ALL PRIVILEGES ON DATABASE %(db_name)s TO %(db_user)s;"
+                        % env)
+
 
     print('\n\nCreating DB...')
 
@@ -249,9 +264,11 @@ def create_db():
                 ("' || { test root = '%(db_user)s' && exit $?; " % env) +
                 "echo 'Trying again, with MySQL root DB user'; " +
                 ("mysql -u root %(db_root_password_opt)s -e '" % env) +
-                create_db_cmd + grant_db_cmd + "';}")
+                create_db_cmd + grant_db_cmd + "';}")        
         else:
-            print('Skipping - not using mysql')
+            #postgres
+            run(psql_cmd + ' --command="' + create_db_cmd + '"')
+            run(psql_cmd + ' --command="' + grant_db_cmd + '"')
 
 
 def drop_db():
