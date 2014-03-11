@@ -239,7 +239,7 @@ def create_db():
     print('\n\nCreating DB...')
 
     with settings(hide('stderr')):
-        run(("mysql -u %(db_user)s %(db_password_opt)s -e '" % env) +
+        run(("mysql -h %(db_host)s -u %(db_user)s %(db_password_opt)s -e '" % env) +
             create_db_cmd +
             ("' || { test root = '%(db_user)s' && exit $?; " % env) +
             "echo 'Trying again, with MySQL root DB user'; " +
@@ -255,8 +255,9 @@ def drop_db():
 
     if confirm('\nDropping the %s DB loses ALL its data! Are you sure?'
                % (env['db_name']), default=False):
-        run("echo 'DROP DATABASE `%s`' | mysql -u %s %s" %
-            (env['db_name'], env['db_user'], env['db_password_opt']))
+        run("echo 'DROP DATABASE `%(db_name)s`' |"
+            " mysql  -h %(db_host)s -u %(db_user)s %(db_password_opt)s" %
+            env)
     else:
         abort('\nAborting.')
 
